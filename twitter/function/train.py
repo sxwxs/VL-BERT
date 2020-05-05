@@ -22,9 +22,9 @@ from common.callbacks.epoch_end_callbacks.validation_monitor import ValidationMo
 from common.callbacks.epoch_end_callbacks.checkpoint import Checkpoint
 from common.lr_scheduler import WarmupMultiStepLR
 from common.nlp.bert.optimization import AdamW, WarmupLinearSchedule
-from vcr.data.build import make_dataloader, build_dataset, build_transforms
-from vcr.modules import *
-from vcr.function.val import do_validation
+from twitter.data.build import make_dataloader, build_dataset, build_transforms
+from twitter.modules import *
+from twitter.function.val import do_validation
 
 try:
     from apex import amp

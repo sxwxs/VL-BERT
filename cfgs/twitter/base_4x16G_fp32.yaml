@@ -17,7 +17,7 @@ DATASET:
   TRAIN_ANNOTATION_FILE: 'train.txt'
   VAL_ANNOTATION_FILE: 'valid2.txt'
   TEST_ANNOTATION_FILE: 'test2.txt'
-  GRAD_ACCUMULATE_STEPS: 2
+  #  GRAD_ACCUMULATE_STEPS: 2
   ANSWER_VOCAB_FILE: './data/coco/vqa/answers_vqa.txt'
   LABEL_INDEX_IN_BATCH: -1
   APPEND_INDEX: false
@@ -53,7 +53,7 @@ NETWORK:
   - 1.0
   - 1.0
   IMAGE_FEAT_PRECOMPUTED: true
-  IMAGE_PRETRAINED: ''
+  IMAGE_PRETRAINED: './model/pretrained_model/vl-bert-base-prec.model'
   IMAGE_PRETRAINED_EPOCH: 0
   IMAGE_FROZEN_BACKBONE_STAGES:
   - 1
@@ -64,6 +64,7 @@ NETWORK:
   OUTPUT_CONV5: false
   BERT_MODEL_NAME: './model/pretrained_model/bert-base-uncased'
   BERT_PRETRAINED: ''
+  #'./model/pretrained_model/resnet101-pt-vgbua'
   BERT_PRETRAINED_EPOCH: 0
   BERT_FROZEN: false
   ENABLE_CNN_REG_LOSS: false

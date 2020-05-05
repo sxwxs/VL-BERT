@@ -57,9 +57,11 @@ class TwitterDataset(Dataset):
         :param kwargs:
         """
         super(TwitterDataset, self).__init__()
+        self.cache_dir = os.path.join(root_path, 'cache')
         assert not cache_mode, 'currently not support cache mode!'
         
         self.data_path = data_path
+        self.test_mode = test_mode
         self.ann_file = os.path.join(text_path, ann_file)
         self.image_set = image_set
         self.transform = transform
@@ -88,7 +90,6 @@ class TwitterDataset(Dataset):
             label = lineLS[-1]
             db_i = {
                 'annot_id': image_id,
-                'objects': ann['objects'],
                 'img_fn': image_path,
                 'box_fn': '/tmp/sarcasm_image2/%s.boxs' % image_id,
                 'text': sentence,

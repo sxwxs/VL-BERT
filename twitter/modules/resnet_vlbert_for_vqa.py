@@ -95,6 +95,7 @@ class ResNetVLBERT(Module):
                 torch.nn.init.xavier_uniform_(m.weight)
                 torch.nn.init.constant_(m.bias, 0)
         if self.config.NETWORK.CLASSIFIER_TYPE == 'mlm':
+            print(self.language_pretrained_model_path)
             language_pretrained = torch.load(self.language_pretrained_model_path)
             mlm_transform_state_dict = {}
             pretrain_keys = []
