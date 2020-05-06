@@ -3,79 +3,43 @@ import os
 import argparse
 from copy import deepcopy
 
-from vcr.function.config import config, update_config
-from vcr.function.test import test_net, merge_result
+from twitter.function.config import config, update_config
+from twitter.function.test import test_net
 
 
 def parse_args():
-    parser = argparse.ArgumentParser('Get Jointly Test Result of Cognition Network')
-    parser.add_argument('--a-cfg', type=str, help='path to answer net config yaml')
-    parser.add_argument('--r-cfg', type=str, help='path to rationale net config yaml')
-    parser.add_argument('--a-ckpt', type=str, help='path to checkpoint of answer net')
-    parser.add_argument('--r-ckpt', type=str, help='path to checkpoint of rationale net')
-    parser.add_argument('--a-bs', type=int)
-    parser.add_argument('--r-bs', type=int)
-    parser.add_argument('--gpus', type=int, nargs='+', default=[0])
-    parser.add_argument('--test-file', type=str)
-    parser.add_argument('--result-path', type=str, help='path to store test result csv file.', default='./test_result')
+    parser = argparse.ArgumentParser('Get Test Result of VQA Network')
+    parser.add_argument('--cfg', type=str, help='path to answer net config yaml')
+    parser.add_argument('--ckpt', type=str, help='path to checkpoint of answer net')
+    parser.add_argument('--bs', type=int)
+    parser.add_argument('--gpus', type=int, nargs='+')
+    parser.add_argument('--model-dir', type=str, help='root path to store checkpoint')
+    parser.add_argument('--result-path', type=str, help='path to store test result file.')
     parser.add_argument('--result-name', type=str)
-    parser.add_argument('--fp16', default=False, action='store_true')
-    parser.add_argument('--use-cache', default=False, action='store_true')
+    parser.add_argument('--split', default='test2015')
 
     args = parser.parse_args()
-    a_config = r_config = None
-    reset_config = deepcopy(config)
-    if args.a_cfg is not None:
-        a_config = config
-        if reset_config is not None:
-            a_config.update(deepcopy(reset_config))
-        if args.a_cfg is not None:
-            update_config(args.a_cfg)
-        a_config = deepcopy(a_config)
-    if args.r_cfg is not None:
-        r_config = config
-        if reset_config is not None:
-            r_config.update(deepcopy(reset_config))
-        if args.r_cfg is not None:
-            update_config(args.r_cfg)
-        r_config = deepcopy(r_config)
-    if args.a_bs is not None:
-        a_config.TEST.BATCH_IMAGES = args.a_bs
-    if args.r_bs is not None:
-        r_config.TEST.BATCH_IMAGES = args.r_bs
 
-    if args.test_file is not None:
-        a_config.DATASET.TEST_ANNOTATION_FILE = args.test_file
-        r_config.DATASET.TEST_ANNOTATION_FILE = args.test_file
+    if args.cfg is not None:
+        update_config(args.cfg)
+    if args.bs is not None:
+        config.TEST.BATCH_IMAGES = args.bs
+    if args.gpus is not None:
+        config.GPUS = ','.join([str(gpu) for gpu in args.gpus])
+    if args.split is not None:
+        config.DATASET.TEST_IMAGE_SET = args.split
+    if args.model_dir is not None:
+        config.OUTPUT_PATH = os.path.join(args.model_dir, config.OUTPUT_PATH)
 
-    return args, a_config, r_config
+    return args, config
 
 
 def main():
-    args, a_config, r_config = parse_args()
+    args, config = parse_args()
 
-    if args.a_ckpt:
-        a_config.DATASET.TASK = 'Q2A'
-        a_config.GPUS = ','.join([str(k) for k in args.gpus])
-        a_result_csv = test_net(args,
-                                a_config,
-                                ckpt_path=args.a_ckpt,
-                                save_path=args.result_path,
-                                save_name=args.result_name)
-    if args.r_ckpt:
-        r_config.DATASET.TASK = 'QA2R'
-        r_config.GPUS = ','.join([str(k) for k in args.gpus])
-        r_result_csv = test_net(args,
-                                r_config,
-                                ckpt_path=args.r_ckpt,
-                                save_path=args.result_path,
-                                save_name=args.result_name)
-    if args.a_ckpt and args.r_ckpt:
-        merge_result(a_result_csv, r_result_csv,
-                     os.path.join(args.result_path, '{}_test_result_Q2AR.csv'.format(args.result_name)))
+    result_json_path = test_net(args, config,
+                                ckpt_path=args.ckpt, save_path=args.result_path, save_name=args.result_name)
 
 
 if __name__ == '__main__':
     main()
-
-
