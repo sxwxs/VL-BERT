@@ -17,7 +17,7 @@ DATASET:
   TRAIN_ANNOTATION_FILE: 'train.txt'
   VAL_ANNOTATION_FILE: 'valid2.txt'
   TEST_ANNOTATION_FILE: 'test2.txt'
-  #  GRAD_ACCUMULATE_STEPS: 2
+  #GRAD_ACCUMULATE_STEPS: 2
   ANSWER_VOCAB_FILE: './data/coco/vqa/answers_vqa.txt'
   LABEL_INDEX_IN_BATCH: -1
   APPEND_INDEX: false
@@ -52,8 +52,8 @@ NETWORK:
   - 1.0
   - 1.0
   - 1.0
-  IMAGE_FEAT_PRECOMPUTED: true
-  IMAGE_PRETRAINED: './model/pretrained_model/vl-bert-base-prec.model'
+  IMAGE_FEAT_PRECOMPUTED: false
+  IMAGE_PRETRAINED: './model/pretrained_model/resnet101-pt-vgbua'
   IMAGE_PRETRAINED_EPOCH: 0
   IMAGE_FROZEN_BACKBONE_STAGES:
   - 1
@@ -88,13 +88,14 @@ NETWORK:
     visual_ln: true
 
   CLASSIFIER_TYPE: "mlm"
-  CLASSIFIER_PRETRAINED: true
+  CLASSIFIER_PRETRAINED: false
   CLASSIFIER_DROPOUT: 0.1
 
 TRAIN:
   SHUFFLE: true
+  GRAD_ACCUMULATE_STEPS: 32
   FLIP_PROB: 0.5
-  BATCH_IMAGES: 32
+  BATCH_IMAGES: 1
   ASPECT_GROUPING: false
   RESUME: false
   AUTO_RESUME: true
@@ -115,10 +116,10 @@ TRAIN:
 VAL:
   SHUFFLE: false
   FLIP_PROB: 0
-  BATCH_IMAGES: 32
+  BATCH_IMAGES: 1
 
 TEST:
   SHUFFLE: false
   FLIP_PROB: 0
   TEST_EPOCH: 0
-  BATCH_IMAGES: 32
+  BATCH_IMAGES: 1

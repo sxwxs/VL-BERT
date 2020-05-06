@@ -16,7 +16,7 @@ from common.utils.misc import summary_parameters, bn_fp16_half_eval
 from common.utils.load import smart_resume, smart_partial_load_model_state_dict
 from common.trainer import train
 from common.metrics.composite_eval_metric import CompositeEvalMetric
-from common.metrics import vcr_metrics
+from common.metrics import vqa_metrics
 from common.callbacks.batch_end_callbacks.speedometer import Speedometer
 from common.callbacks.epoch_end_callbacks.validation_monitor import ValidationMonitor
 from common.callbacks.epoch_end_callbacks.checkpoint import Checkpoint
@@ -36,9 +36,7 @@ except ImportError:
 
 def train_net(args, config):
     # setup logger
-    logger, final_output_path = create_logger(config.OUTPUT_PATH,
-                                              args.cfg,
-                                              config.DATASET.TRAIN_IMAGE_SET,
+    logger, final_output_path = create_logger(config.OUTPUT_PATH, args.cfg, config.DATASET.TRAIN_IMAGE_SET,
                                               split='train')
     model_prefix = os.path.join(final_output_path, config.MODEL_PREFIX)
     if args.log_dir is None:
@@ -200,46 +198,47 @@ def train_net(args, config):
     if config.NETWORK.PARTIAL_PRETRAIN != "":
         pretrain_state_dict = torch.load(config.NETWORK.PARTIAL_PRETRAIN, map_location=lambda storage, loc: storage)['state_dict']
         prefix_change = [prefix_change.split('->') for prefix_change in config.NETWORK.PARTIAL_PRETRAIN_PREFIX_CHANGES]
-
-        pretrain_state_dict_parsed = {}
-        for k, v in pretrain_state_dict.items():
-            no_match = True
-            for pretrain_prefix, new_prefix in prefix_change:
-                if k.startswith(pretrain_prefix):
-                    k = new_prefix + k[len(pretrain_prefix):]
+        if len(prefix_change) > 0:
+            pretrain_state_dict_parsed = {}
+            for k, v in pretrain_state_dict.items():
+                no_match = True
+                for pretrain_prefix, new_prefix in prefix_change:
+                    if k.startswith(pretrain_prefix):
+                        k = new_prefix + k[len(pretrain_prefix):]
+                        pretrain_state_dict_parsed[k] = v
+                        no_match = False
+                        break
+                if no_match:
                     pretrain_state_dict_parsed[k] = v
-                    no_match = False
-                    break
-            if no_match:
-                pretrain_state_dict_parsed[k] = v
-        if 'module.vlbert.relationsip_head.caption_image_relationship.weight' in pretrain_state_dict \
-                and config.NETWORK.LOAD_REL_HEAD:
-            pretrain_state_dict_parsed['module.final_mlp.1.weight'] \
-                = pretrain_state_dict['module.vlbert.relationsip_head.caption_image_relationship.weight'][1:2].float() \
-                - pretrain_state_dict['module.vlbert.relationsip_head.caption_image_relationship.weight'][0:1].float()
-            pretrain_state_dict_parsed['module.final_mlp.1.bias'] \
-                = pretrain_state_dict['module.vlbert.relationsip_head.caption_image_relationship.bias'][1:2].float() \
-                  - pretrain_state_dict['module.vlbert.relationsip_head.caption_image_relationship.bias'][0:1].float()
-        if config.NETWORK.PARTIAL_PRETRAIN_SEGMB_INIT:
-            if isinstance(pretrain_state_dict_parsed['module.vlbert._module.token_type_embeddings.weight'],
-                          torch.HalfTensor):
-                pretrain_state_dict_parsed['module.vlbert._module.token_type_embeddings.weight'] = \
-                    pretrain_state_dict_parsed['module.vlbert._module.token_type_embeddings.weight'].float()
-            pretrain_state_dict_parsed['module.vlbert._module.token_type_embeddings.weight'][1] = \
-                pretrain_state_dict_parsed['module.vlbert._module.token_type_embeddings.weight'][0]
-        pretrain_state_dict = pretrain_state_dict_parsed
-
+            pretrain_state_dict = pretrain_state_dict_parsed
         smart_partial_load_model_state_dict(model, pretrain_state_dict)
 
-    # metrics
-    train_metrics_list = [vcr_metrics.Accuracy(allreduce=args.dist,
-                                               num_replicas=world_size if args.dist else 1)]
-    val_metrics_list = [vcr_metrics.Accuracy(allreduce=args.dist,
-                                             num_replicas=world_size if args.dist else 1)]
+    # pretrained classifier
+    if config.NETWORK.CLASSIFIER_PRETRAINED:
+        print('Initializing classifier weight from pretrained word embeddings...')
+        answers_word_embed = []
+        for k, v in model.state_dict().items():
+            if 'word_embeddings.weight' in k:
+                word_embeddings = v.detach().clone()
+                break
+        for answer in train_loader.dataset.answer_vocab:
+            a_tokens = train_loader.dataset.tokenizer.tokenize(answer)
+            a_ids = train_loader.dataset.tokenizer.convert_tokens_to_ids(a_tokens)
+            a_word_embed = (torch.stack([word_embeddings[a_id] for a_id in a_ids], dim=0)).mean(dim=0)
+            answers_word_embed.append(a_word_embed)
+        answers_word_embed_tensor = torch.stack(answers_word_embed, dim=0)
+        for name, module in model.named_modules():
+            if name.endswith('final_mlp'):
+                module[-1].weight.data = answers_word_embed_tensor.to(device=module[-1].weight.data.device)
 
+    # metrics
+    train_metrics_list = [vqa_metrics.SoftAccuracy(allreduce=args.dist,
+                                                   num_replicas=world_size if args.dist else 1)]
+    val_metrics_list = [vqa_metrics.SoftAccuracy(allreduce=args.dist,
+                                                 num_replicas=world_size if args.dist else 1)]
     for output_name, display_name in config.TRAIN.LOSS_LOGGERS:
         train_metrics_list.append(
-            vcr_metrics.LossLogger(output_name, display_name=display_name, allreduce=args.dist,
+            vqa_metrics.LossLogger(output_name, display_name=display_name, allreduce=args.dist,
                                    num_replicas=world_size if args.dist else 1))
 
     train_metrics = CompositeEvalMetric()
@@ -254,7 +253,7 @@ def train_net(args, config):
     if (rank is None) or (rank == 0):
         epoch_end_callbacks = [Checkpoint(model_prefix, config.CHECKPOINT_FREQUENT)]
     validation_monitor = ValidationMonitor(do_validation, val_loader, val_metrics,
-                                           host_metric_name='Acc',
+                                           host_metric_name='SoftAcc',
                                            label_index_in_batch=config.DATASET.LABEL_INDEX_IN_BATCH)
 
     # optimizer initial lr before
@@ -276,8 +275,6 @@ def train_net(args, config):
                                        epochs=config.TRAIN.END_EPOCH - config.TRAIN.BEGIN_EPOCH)]
 
     # setup lr step and lr scheduler
-
-
     if config.TRAIN.LR_SCHEDULE == 'plateau':
         print("Warning: not support resuming on plateau lr schedule!")
         lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer,
@@ -325,7 +322,7 @@ def train_net(args, config):
                                           opt_level='O2',
                                           keep_batchnorm_fp32=False,
                                           loss_scale=config.TRAIN.FP16_LOSS_SCALE,
-                                          min_loss_scale=128.0)
+                                          min_loss_scale=32.0)
         if args.dist:
             model = Apex_DDP(model, delay_allreduce=True)
 

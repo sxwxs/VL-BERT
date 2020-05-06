@@ -27,7 +27,8 @@ class SoftAccuracy(EvalMetric):
             label = outputs['label']
             bs, num_classes = cls_logits.shape
             batch_inds = torch.arange(bs, device=cls_logits.device)
-            self.sum_metric += float(label[batch_inds, cls_logits.argmax(1)].sum().item())
+            #self.sum_metric += float(label[batch_inds, cls_logits.argmax(1)].sum().item())
+            self.sum_metric += cls_logits.sum().item()
             self.num_inst += cls_logits.shape[0]
 
 

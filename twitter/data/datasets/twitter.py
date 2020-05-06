@@ -78,6 +78,13 @@ class TwitterDataset(Dataset):
         self.tokenizer = tokenizer
         self.database = self.load_annotations(self.ann_file)
 
+    @property
+    def data_names(self):
+        if self.test_mode:
+            return ['image', 'boxes', 'im_info', 'question']
+        else:
+            return ['image', 'boxes', 'im_info', 'question', 'label']
+
     def load_annotations(self, ann_file):
         tic = time.time()
         database = []
@@ -88,6 +95,8 @@ class TwitterDataset(Dataset):
             image_path = ((imag_path + '%s.jpg') % image_id)
             sentence = lineLS[1]
             label = lineLS[-1]
+            if not os.path.exists('/tmp/sarcasm_image2/%s.boxs' % image_id):
+                continue
             db_i = {
                 'annot_id': image_id,
                 'img_fn': image_path,
@@ -104,7 +113,7 @@ class TwitterDataset(Dataset):
         # self.person_name_id = 0
         idb = deepcopy(self.database[index])
         with open(idb['box_fn']) as f:
-            idb['boxes'] = json.loads(f)
+            idb['boxes'] = json.load(f)
         # idb['width'] = metadata['width']
         # idb['height'] = metadata['height']
 
@@ -134,7 +143,7 @@ class TwitterDataset(Dataset):
             return image, boxes, im_info, idb['text']
         else:
             # print([(self.answer_vocab[i], p.item()) for i, p in enumerate(label) if p.item() != 0])
-            return image, boxes, im_info, idb['text'], label
+            return image, boxes, im_info, idb['text'], idb['label']
 
     def __len__(self):
         return len(self.database)

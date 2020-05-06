@@ -48,8 +48,6 @@ def make_dataloader(cfg, dataset=None, mode='train', distributed=False, num_repl
         batch_size = cfg.TRAIN.BATCH_IMAGES * num_gpu
         shuffle = cfg.TRAIN.SHUFFLE
         num_workers = cfg.NUM_WORKERS_PER_GPU * num_gpu
-        mask_vl_modeling = cfg.DATASET.MASK_VL_MODELING if 'MASK_VL_MODELING' in cfg.DATASET else False
-        mask_language_modeling = cfg.NETWORK.BERT_WITH_MLM_LOSS if 'BERT_WITH_MLM_LOSS' in cfg.NETWORK else False
     elif mode == 'val':
         ann_file = cfg.DATASET.VAL_ANNOTATION_FILE
         image_set = cfg.DATASET.VAL_IMAGE_SET
@@ -58,10 +56,6 @@ def make_dataloader(cfg, dataset=None, mode='train', distributed=False, num_repl
         batch_size = cfg.VAL.BATCH_IMAGES * num_gpu
         shuffle = cfg.VAL.SHUFFLE
         num_workers = cfg.NUM_WORKERS_PER_GPU * num_gpu
-        mask_vl_modeling = False
-        mask_language_modeling = False
-        if 'MASK_VL_MODELING' in cfg.DATASET and cfg.DATASET.MASK_VL_MODELING and cfg.NETWORK.FOR_MASK_VL_MODELING_PRETRAIN:
-            mask_vl_modeling = True
     else:
         ann_file = cfg.DATASET.TEST_ANNOTATION_FILE
         image_set = cfg.DATASET.TEST_IMAGE_SET
@@ -70,69 +64,25 @@ def make_dataloader(cfg, dataset=None, mode='train', distributed=False, num_repl
         batch_size = cfg.TEST.BATCH_IMAGES * num_gpu
         shuffle = cfg.TEST.SHUFFLE
         num_workers = cfg.NUM_WORKERS_PER_GPU * num_gpu
-        mask_vl_modeling = False
-        mask_language_modeling = False
 
     transform = build_transforms(cfg, mode)
 
     if dataset is None:
-        kwargs = {'mask_vl_modeling': mask_vl_modeling,
-                  'mask_language_modeling': mask_language_modeling}
-        if mask_vl_modeling:
-            kwargs['mask_replace_only_same_cls'] = cfg.DATASET.MASK_REPLACE_ONLY_SAME_CLS
-            kwargs['mask_master_ind_random'] = (not cfg.NETWORK.FOR_MASK_VL_MODELING_PRETRAIN)
-            kwargs['mask_vl_modeling_mask_prob'] = cfg.DATASET.MASK_VL_MODELING_MASK_PROB
-            kwargs['mask_vl_modeling_replace_prob'] = cfg.DATASET.MASK_VL_MODELING_REPLACE_PROB
-        try:
-            kwargs['qa2r_noq'] = cfg.DATASET.QA2R_NOQ
-            kwargs['qa2r_aug'] = cfg.DATASET.QA2R_AUG
-        except AttributeError:
-            pass
-        try:
-            kwargs['basic_align'] = cfg.DATASET.BASIC_ALIGN
-        except AttributeError:
-            pass
-        try:
-            kwargs['with_lg'] = cfg.NETWORK.GNN.WITH_LG_LAYER
-            kwargs['with_kg'] = cfg.NETWORK.GNN.WITH_KG
-            kwargs['kg_path'] = cfg.DATASET.__getattribute__('{}_KG_PATH'.format(mode.upper()))
-            kwargs['kg_word_embed'] = cfg.DATASET.__getattribute__('{}_KG_WORD_EMBED'.format(mode.upper()))
-        except AttributeError:
-            pass
-        try:
-            kwargs['kg_path'] = cfg.DATASET.__getattribute__('{}_KG_PATH'.format(mode.upper()))
-            kwargs['fact_path'] = cfg.DATASET.__getattribute__('{}_KG_PATH'.format(mode.upper()))
-        except AttributeError:
-            pass
-        try:
-            kwargs['expression_file'] = cfg.DATASET.__getattribute__('{}_EXPRESSION_FILE'.format(mode.upper()))
-        except AttributeError:
-            pass
-
-        try:
-            kwargs['kg_vocab_file'] = cfg.NETWORK.KB_NODE_VOCAB
-        except AttributeError:
-            pass
-
-        try:
-            kwargs['caption_file'] = cfg.DATASET.__getattribute__('{}_CAPTION_FILE'.format(mode.upper()))
-        except AttributeError:
-            pass
-
-        print('Dataset kwargs:')
-        pprint.pprint(kwargs)
 
         dataset = build_dataset(dataset_name=cfg.DATASET.DATASET, ann_file=ann_file, image_set=image_set,
+                                use_imdb=cfg.DATASET.USE_IMDB,
+                                with_precomputed_visual_feat=cfg.NETWORK.IMAGE_FEAT_PRECOMPUTED,
+                                boxes=cfg.DATASET.BOXES,
+                                answer_vocab_file=cfg.DATASET.ANSWER_VOCAB_FILE,
                                 root_path=cfg.DATASET.ROOT_PATH, data_path=cfg.DATASET.DATASET_PATH,
-                                test_mode=(mode == 'test'), task=cfg.DATASET.TASK, transform=transform,
+                                test_mode=(mode == 'test'), transform=transform,
                                 zip_mode=cfg.DATASET.ZIP_MODE, cache_mode=cfg.DATASET.CACHE_MODE,
+                                cache_db=True if (rank is None or rank == 0) else False,
                                 ignore_db_cache=cfg.DATASET.IGNORE_DB_CACHE,
-                                only_use_relevant_dets=cfg.DATASET.ONLY_USE_RELEVANT_DETS,
                                 add_image_as_a_box=cfg.DATASET.ADD_IMAGE_AS_A_BOX,
                                 aspect_grouping=aspect_grouping,
                                 mask_size=(cfg.DATASET.MASK_SIZE, cfg.DATASET.MASK_SIZE),
-                                pretrained_model_name=cfg.NETWORK.BERT_MODEL_NAME,
-                                **kwargs)
+                                pretrained_model_name=cfg.NETWORK.BERT_MODEL_NAME)
 
     sampler = make_data_sampler(dataset, shuffle, distributed, num_replicas, rank)
     batch_sampler = make_batch_data_sampler(dataset, sampler, aspect_grouping, batch_size)

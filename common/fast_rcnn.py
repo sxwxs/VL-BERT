@@ -63,7 +63,9 @@ class FastRCNN(nn.Module):
                 raise NotImplemented
 
             output_size = (14, 14)
-            self.roi_align = ROIAlign(output_size=output_size, spatial_scale=1.0 / 16)
+            #self.roi_align = ROIAlign(output_size=output_size, spatial_scale=1.0 / 16)
+            import torchvision
+            self.roi_align = torchvision.ops.roi_align
 
             if config.NETWORK.IMAGE_SEMANTIC:
                 self.object_embed = torch.nn.Embedding(num_embeddings=81, embedding_dim=128)
@@ -135,10 +137,16 @@ class FastRCNN(nn.Module):
 
         box_inds = box_mask.nonzero()
         obj_labels = classes[box_inds[:, 0], box_inds[:, 1]].type(torch.long) if classes is not None else None
-        assert box_inds.shape[0] > 0
+        if box_inds.shape[0] <= 0:
+            print(box_inds, boxes)
+        #assert box_inds.shape[0] > 0
 
         if self.image_feat_precomputed:
             post_roialign = boxes[box_inds[:, 0], box_inds[:, 1]][:, 4:]
+            #with open('xxx.log', 'a') as flogx:
+            #    flogx.write(str(boxes.shape)+'\n')
+            #    flogx.write(str(box_inds.shape)+'\n')
+            #    flogx.write(str(post_roialign.shape)+'\n')
             boxes = boxes[:, :, :4]
         else:
             img_feats = self.backbone(images)
@@ -146,7 +154,7 @@ class FastRCNN(nn.Module):
                 box_inds[:, 0, None].type(boxes.dtype),
                 boxes[box_inds[:, 0], box_inds[:, 1]],
             ), 1)
-            roi_align_res = self.roi_align(img_feats['body4'], rois).type(images.dtype)
+            roi_align_res = self.roi_align(img_feats['body4'], rois[:,0:5], (14,14)).type(images.dtype)
 
             if segms is not None:
                 pool_layers = self.head[1:]
@@ -161,6 +169,9 @@ class FastRCNN(nn.Module):
             if self.enable_cnn_reg_loss:
                 obj_logits = self.regularizing_predictor(post_roialign)
                 cnn_regularization = F.cross_entropy(obj_logits, obj_labels)[None]
+        #with open('xxx.log', 'a') as flogx:
+        #    flogx.write(str(self.object_embed)+'\n')
+        #    flogx.write(str(post_roialign.shape)+'\n')
 
         feats_to_downsample = post_roialign if (self.object_embed is None or obj_labels is None) else \
             torch.cat((post_roialign, self.object_embed(obj_labels)), -1)
@@ -171,6 +182,9 @@ class FastRCNN(nn.Module):
             torch.cat((boxes[box_inds[:, 0], box_inds[:, 1]], im_info[box_inds[:, 0], :2]), 1),
             256
         )
+        #with open('xxx.log', 'a') as flogx:
+        #    flogx.write(str(feats_to_downsample.shape)+'\n')
+        #    flogx.write(str(coord_embed.shape)+'\n')
         feats_to_downsample = torch.cat((coord_embed.view((coord_embed.shape[0], -1)), feats_to_downsample), -1)
         final_feats = self.obj_downsample(feats_to_downsample)
 

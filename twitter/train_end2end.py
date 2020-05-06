@@ -7,6 +7,8 @@ import subprocess
 from twitter.function.config import config, update_config
 from twitter.function.train import train_net
 from twitter.function.test import test_net
+import warnings
+warnings.filterwarnings("ignore")
 
 def parse_args():
     parser = argparse.ArgumentParser('Train Cognition Network')

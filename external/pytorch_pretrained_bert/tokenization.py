@@ -99,7 +99,10 @@ class BertTokenizer(object):
         """Converts a sequence of tokens into ids using the vocab."""
         ids = []
         for token in tokens:
-            ids.append(self.vocab[token])
+            if token in self.vocab:
+                ids.append(self.vocab[token])
+            else:
+                ids.append(self.vocab['[UNK]'])
         if len(ids) > self.max_len:
             raise ValueError(
                 "Token indices sequence length is longer than the specified maximum "

@@ -68,7 +68,7 @@ class ResNetVLBERT(Module):
             )
         elif config.NETWORK.CLASSIFIER_TYPE == 'mlm':
             transform = BertPredictionHeadTransform(config.NETWORK.VLBERT)
-            linear = nn.Linear(config.NETWORK.VLBERT.hidden_size, config.DATASET.ANSWER_VOCAB_SIZE)
+            linear = nn.Linear(config.NETWORK.VLBERT.hidden_size, 1)#config.DATASET.ANSWER_VOCAB_SIZE)
             self.final_mlp = nn.Sequential(
                 transform,
                 nn.Dropout(config.NETWORK.CLASSIFIER_DROPOUT, inplace=False),
@@ -247,7 +247,9 @@ class ResNetVLBERT(Module):
         logits = self.final_mlp(hm)
 
         # loss
-        ans_loss = F.binary_cross_entropy_with_logits(logits, label) * label.size(1)
+        #ans_loss = F.binary_cross_entropy_with_logits(logits.squeeze(), label.type(torch.float)) * label.size(1)
+        loss_fct = nn.BCEWithLogitsLoss()
+        ans_loss = loss_fct(logits[0], label.type(torch.float))
 
         outputs.update({'label_logits': logits,
                         'label': label,
