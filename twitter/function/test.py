@@ -65,10 +65,10 @@ def test_net(args, config, ckpt_path=None, save_path=None, save_name=None):
     for nbatch, batch in zip(trange(len(test_loader)), test_loader):
     # for nbatch, batch in tqdm(enumerate(test_loader)):
         bs = test_loader.batch_sampler.batch_size if test_loader.batch_sampler is not None else test_loader.batch_size
-        q_ids.extend([test_database[id]['question_id'] for id in range(cur_id, min(cur_id + bs, len(test_database)))])
+        q_ids.extend([str(test_database[id]['annot_id']) for id in range(cur_id, min(cur_id + bs, len(test_database)))])
         batch = to_cuda(batch)
         output = model(*batch)
-        answer_ids.extend(output['label_logits'].argmax(dim=1).detach().cpu().tolist())
+        answer_ids.extend(output['label_logits'].cpu().numpy().tolist())
         cur_id += bs
 
     result = [q_ids, answer_ids]
