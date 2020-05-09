@@ -150,11 +150,11 @@ class FastRCNN(nn.Module):
             boxes = boxes[:, :, :4]
         else:
             img_feats = self.backbone(images)
-            rois = torch.cat((
-                box_inds[:, 0, None].type(boxes.dtype),
-                boxes[box_inds[:, 0], box_inds[:, 1]],
-            ), 1)
-            roi_align_res = self.roi_align(img_feats['body4'], rois[:,0:5], (14,14)).type(images.dtype)
+            #rois = torch.cat((
+            #    box_inds[:, 0, None].type(boxes.dtype),
+            #    boxes[box_inds[:, 0], box_inds[:, 1]],
+            #), 1)
+            roi_align_res = self.roi_align(img_feats['body4'], boxes, (14,14)).type(images.dtype)
 
             if segms is not None:
                 pool_layers = self.head[1:]

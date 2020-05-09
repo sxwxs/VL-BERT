@@ -126,9 +126,9 @@ class TwitterDataset(Dataset):
         w0, h0 = image.size
 
         # extract bounding boxes and instance masks in metadata
-        boxes = torch.zeros((len(idb['boxes']), 6))
-        if len(idb['boxes']) > 0:
-            boxes[:, :5] = torch.tensor(idb['boxes'])
+        # = torch.zeros((len(idb['boxes']), 6))
+        #if len(idb['boxes']) > 0:
+        boxes = torch.tensor(idb['boxes'])
         
         im_info = torch.tensor([w0, h0, 1.0, 1.0])
         flipped = False
